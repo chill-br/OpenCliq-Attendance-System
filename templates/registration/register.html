@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-xl mx-auto mt-8 px-4">
+    <div class="bg-white p-10 rounded-2xl shadow-xl border border-gray-100">
+        <div class="text-center mb-10">
+            <h2 class="text-3xl font-extrabold text-gray-900">Get Started</h2>
+            <p class="text-gray-500 mt-2">Create your employee profile</p>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {% csrf_token %}
+            
+            {% for field in form %}
+            <div class="{% if field.name == 'avatar' or field.name == 'email' %}md:col-span-2{% endif %}">
+                <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{{ field.label }}</label>
+                <div class="relative">
+                    {{ field }}
+                </div>
+                {% if field.errors %}
+                    <p class="text-red-500 text-xs mt-1 font-medium">{{ field.errors.0 }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <div class="md:col-span-2 mt-4">
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-100 transition-all uppercase tracking-widest text-sm">
+                    Complete Registration
+                </button>
+            </div>
+        </form>
+
+        <p class="mt-8 text-center text-sm text-gray-500">
+            Already have an account? <a href="{% url 'login' %}" class="text-blue-600 font-bold hover:underline">Login here</a>
+        </p>
+    </div>
+</div>
+
+<style>
+    /* Styling Django's default form inputs to match Tailwind */
+    input[type="text"], input[type="password"], input[type="email"], select, input[type="file"] {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        border: 1px solid #e5e7eb;
+        background-color: #f9fafb;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | OpenCliq</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      .task-done {
+        text-decoration: line-through;
+        opacity: 0.5;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="bg-gray-50 font-sans min-h-screen">
+    <nav class="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
+    <div class="flex items-center gap-2">
+        <div class="bg-blue-600 p-1.5 rounded-lg">
+            <i class="fas fa-bolt text-white"></i>
+        </div>
+        <h1 class="text-2xl font-black text-blue-600 tracking-tight">
+            OpenCliq
+        </h1>
+    </div>
+
+    <div class="flex items-center gap-6">
+        
+        <div class="flex items-center gap-3">
+            <div class="text-right">
+                <p class="text-[10px] text-blue-500 uppercase font-black leading-none">
+                    {{ user.department|default:"Employee" }}
+                </p>
+                <p class="text-sm font-bold text-gray-800">{{ user.username }}</p>
+            </div>
+            {% if user.avatar %}
+            <img src="{{ user.avatar.url }}" class="w-10 h-10 rounded-full border-2 border-blue-100 object-cover shadow-sm" />
+            {% else %}
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                <i class="fas fa-user"></i>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="flex items-center gap-4 border-l pl-4 border-gray-100">
+            {% if user.is_staff %}
+                <a href="{% url 'admin-dashboard' %}" title="View Workers" class="text-gray-400 hover:text-blue-600 px-2 transition-all">
+                    <i class="fas fa-user-shield text-lg"></i>
+                </a>
+                <a href="{% url 'create-meeting' %}" title="Schedule Meeting" class="text-gray-400 hover:text-green-600 px-2 transition-all">
+                    <i class="fas fa-calendar-plus text-lg"></i>
+                </a>
+            {% endif %}
+
+            <form action="{% url 'logout' %}" method="post" class="flex items-center">
+                {% csrf_token %}
+                <button type="submit" title="Logout" class="text-gray-400 hover:text-red-600 px-2 transition-all">
+                    <i class="fas fa-power-off text-lg"></i>
+                </button>
+            </form>
+        </div>
+
+    </div>
+</nav>
+
+    <main class="max-w-6xl mx-auto mt-8 px-6 pb-12">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div
+          class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5"
+        >
+          <div class="bg-blue-50 p-4 rounded-2xl text-blue-600">
+            <i class="fas fa-clock text-2xl"></i>
+          </div>
+          <div>
+            <p
+              class="text-gray-400 text-[10px] font-black uppercase tracking-widest"
+            >
+              Today
+            </p>
+            <h4 class="text-2xl font-black text-gray-800">
+              {{ today_hours }}<span class="text-sm font-bold text-gray-400">
+                hrs</span
+              >
+            </h4>
+          </div>
+        </div>
+        <div
+          class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5"
+        >
+          <div class="bg-indigo-50 p-4 rounded-2xl text-indigo-600">
+            <i class="fas fa-calendar-check text-2xl"></i>
+          </div>
+          <div>
+            <p
+              class="text-gray-400 text-[10px] font-black uppercase tracking-widest"
+            >
+              This Month
+            </p>
+            <h4 class="text-2xl font-black text-gray-800">
+              {{ monthly_hours }}<span class="text-sm font-bold text-gray-400">
+                hrs</span
+              >
+            </h4>
+          </div>
+        </div>
+        <div
+          class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5"
+        >
+          <div class="bg-emerald-50 p-4 rounded-2xl text-emerald-600">
+            <i class="fas fa-sign-in-alt text-2xl"></i>
+          </div>
+          <div>
+            <p
+              class="text-gray-400 text-[10px] font-black uppercase tracking-widest"
+            >
+              Avg. Start
+            </p>
+            <h4 class="text-2xl font-black text-gray-800">
+              {{ avg_check_in }}
+            </h4>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div class="lg:col-span-1 space-y-6">
+          <div
+            class="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 text-center"
+          >
+            <h3
+              class="text-gray-400 uppercase text-[10px] font-black tracking-widest mb-6"
+            >
+              Attendance Control
+            </h3>
+            <form
+              action="{% url 'toggle-attendance' %}"
+              method="POST"
+              class="space-y-4"
+            >
+              {% csrf_token %} {% if not user.is_online %}
+              <div class="text-left">
+                <label
+                  class="block text-[10px] font-black text-gray-400 uppercase mb-2"
+                  >Work Mode</label
+                >
+                <select
+                  name="work_mode"
+                  class="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-100 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="OFFICE">🏢 In-Office</option>
+                  <option value="REMOTE">🏠 Remote</option>
+                  <option value="FIELD">🚗 Field Work</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-95"
+              >
+                Check In
+              </button>
+              {% else %}
+              <div class="py-4 px-2 bg-green-50 rounded-2xl mb-4">
+                <span class="text-green-600 font-bold text-sm"
+                  >● Currently Active</span
+                >
+              </div>
+              <button
+                type="submit"
+                class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-95"
+              >
+                Check Out
+              </button>
+              {% endif %}
+            </form>
+          </div>
+
+          <div
+            class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6"
+          >
+            <h3
+              class="font-bold text-gray-800 mb-4 flex items-center justify-between"
+            >
+              <span
+                ><i class="fas fa-list-check text-blue-500 mr-2"></i> Daily
+                Focus</span
+              >
+              <span
+                id="task-count"
+                class="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full"
+                >{{ tasks|length }}</span
+              >
+            </h3>
+            <div id="todo-list" class="space-y-3 mb-4">
+              {% for task in tasks %}
+              <div
+                class="flex items-center justify-between group p-2 hover:bg-gray-50 rounded-xl transition"
+                id="task-container-{{ task.id }}"
+              >
+                <div class="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    onclick="toggleTask({{ task.id }})"
+                    {%
+                    if
+                    task.is_completed
+                    %}checked{%
+                    endif
+                    %}
+                    class="w-4 h-4 rounded border-gray-300 text-blue-600"
+                  />
+                  <span
+                    id="task-text-{{ task.id }}"
+                    class="text-sm font-medium {% if task.is_completed %}text-gray-400 line-through{% else %}text-gray-600{% endif %}"
+                    >{{ task.text }}</span
+                  >
+                </div>
+                <button
+                  onclick="deleteTask({{ task.id }})"
+                  class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                >
+                  <i class="fas fa-times text-xs"></i>
+                </button>
+              </div>
+              {% empty %}
+              <p id="no-tasks" class="text-xs text-center text-gray-400 py-4">
+                No tasks yet
+              </p>
+              {% endfor %}
+            </div>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                id="task-input"
+                placeholder="Add task..."
+                class="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <button
+                onclick="addTask()"
+                class="bg-blue-600 text-white px-3 py-2 rounded-xl hover:bg-blue-700"
+              >
+                <i class="fas fa-plus"></i>
+              </button>
+            </div>
+          </div>
+
+          <div
+            class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6"
+          >
+            <h3 class="font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <i class="fas fa-users text-blue-500"></i> Team Status
+            </h3>
+            <div class="space-y-4">
+              {% for member in online_team %}
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold"
+                  >
+                    {{ member.username|slice:":1"|upper }}
+                  </div>
+                  <p class="text-sm font-bold text-gray-700">
+                    {{ member.username }}
+                  </p>
+                </div>
+                <span
+                  class="w-2 h-2 bg-green-500 rounded-full animate-pulse"
+                ></span>
+              </div>
+              {% empty %}
+              <p class="text-xs text-gray-400 text-center py-2">
+                No teammates online
+              </p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2">
+          <div
+            class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+          >
+            <div
+              class="bg-gray-50 px-8 py-5 border-b border-gray-100 flex justify-between items-center"
+            >
+              <div>
+                <h3 class="font-black text-gray-700">Attendance Logs</h3>
+                <p class="text-xs text-gray-400">Your recent sessions</p>
+              </div>
+              <a
+                href="{% url 'export-attendance' %}"
+                class="bg-white border border-gray-200 text-gray-600 text-xs font-bold px-4 py-2 rounded-xl hover:bg-gray-50 transition flex items-center gap-2"
+              >
+                <i class="fas fa-download"></i> Export
+              </a>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                  <tr
+                    class="text-gray-400 text-[10px] uppercase tracking-widest border-b border-gray-50"
+                  >
+                    <th class="px-8 py-4">Date</th>
+                    <th class="px-8 py-4">Check In</th>
+                    <th class="px-8 py-4">Check Out</th>
+                    <th class="px-8 py-4 text-right">Duration</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  {% for log in logs %}
+                  <tr class="hover:bg-gray-50/50 transition-colors">
+                    <td class="px-8 py-4 text-sm font-bold text-gray-600">
+                      {{ log.date }}
+                    </td>
+                    <td class="px-8 py-4 text-sm font-mono">
+                      {{ log.check_in|time:"H:i" }}
+                    </td>
+                    <td class="px-8 py-4 text-sm font-mono">
+                      {% if log.check_out %}{{ log.check_out|time:"H:i" }}{%
+                      else %}--{% endif %}
+                    </td>
+                    <td class="px-8 py-4 text-right">
+                      <span
+                        class="px-3 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-black"
+                        >{% if log.check_out %}{{ log.get_duration }}{% else
+                        %}Active{% endif %}</span
+                      >
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div
+              class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6"
+            >
+              <h3 class="font-bold text-gray-800 mb-4">Weekly Activity</h3>
+              <canvas id="activityChart" height="100"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 mb-6">
+    <div class="flex items-center justify-between mb-6">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2">
+            <i class="fas fa-bullhorn text-blue-500"></i> Announcements
+        </h3>
+        <span class="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-1 rounded-full uppercase">Live</span>
+    </div>
+
+    <div class="space-y-4">
+        {% for meeting in meetings %}
+        <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-blue-200 transition-all group">
+            <div class="flex justify-between items-start mb-2">
+                <span class="text-[10px] font-black text-blue-500 uppercase">{{ meeting.start_time|date:"D, d M" }}</span>
+                <span class="text-[10px] font-bold text-gray-400">{{ meeting.start_time|time:"H:i" }}</span>
+            </div>
+            <h4 class="text-sm font-bold text-gray-800 mb-1 group-hover:text-blue-600 transition-colors">{{ meeting.title }}</h4>
+            <p class="text-xs text-gray-500 mb-3 line-clamp-1">{{ meeting.description }}</p>
+            
+            {% if meeting.meeting_link %}
+            <a href="{{ meeting.meeting_link }}" target="_blank" class="inline-flex items-center gap-2 text-[10px] font-black text-white bg-gray-800 hover:bg-blue-600 px-3 py-2 rounded-xl transition-all">
+                <i class="fas fa-video"></i> JOIN MEETING
+            </a>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="text-center py-6">
+            <i class="fas fa-calendar-check text-gray-200 text-3xl mb-2"></i>
+            <p class="text-xs text-gray-400">No meetings scheduled today</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+        </div>
+      </div>
+      
+    </main>
+
+    <script>
+              function getCookie(name) {
+                  let cookieValue = null;
+                  if (document.cookie && document.cookie !== '') {
+                      const cookies = document.cookie.split(';');
+                      for (let i = 0; i < cookies.length; i++) {
+                          const cookie = cookies[i].trim();
+                          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                              break;
+                          }
+                      }
+                  }
+                  return cookieValue;
+              }
+              const csrftoken = getCookie('csrftoken');
+
+              function addTask() {
+                  const input = document.getElementById('task-input');
+                  if (!input.value.trim()) return;
+                  fetch("{% url 'add-task' %}", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "X-CSRFToken": csrftoken },
+                      body: JSON.stringify({ text: input.value })
+                  }).then(() => location.reload());
+              }
+
+              function toggleTask(taskId) {
+                  fetch(`/task/toggle/${taskId}/`, {
+                      method: "POST",
+                      headers: { "X-CSRFToken": csrftoken }
+                  }).then(res => res.json()).then(data => {
+                      const span = document.getElementById(`task-text-${taskId}`);
+                      data.is_completed ? span.classList.add('text-gray-400', 'line-through') : span.classList.remove('text-gray-400', 'line-through');
+                  });
+              }
+
+              function deleteTask(taskId) {
+                  fetch(`/task/delete/${taskId}/`, {
+                      method: "POST",
+                      headers: { "X-CSRFToken": csrftoken }
+                  }).then(() => document.getElementById(`task-container-${taskId}`).remove());
+              }
+
+              document.getElementById('task-input').addEventListener("keypress", (e) => { if (e.key === "Enter") addTask(); });
+
+              const ctx = document.getElementById('activityChart').getContext('2d');
+      new Chart(ctx, {
+          type: 'bar',
+          data: {
+              labels: {{ chart_days|safe }},
+              datasets: [{
+                  label: 'Hours Worked',
+                  data: {{ chart_data|safe }},
+                  backgroundColor: '#2563eb',
+                  borderRadius: 8,
+              }]
+          },
+          options: {
+              scales: {
+                  y: { beginAtZero: true }
+              }
+          }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto mt-10 px-6 pb-20">
+    <div class="flex items-center gap-4 mb-8">
+        <a href="{% url 'admin-workers' %}" class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 text-gray-400 hover:text-blue-600 transition-all">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        <h2 class="text-3xl font-black text-gray-800">Master Attendance Logs</h2>
+    </div>
+
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
+        <form method="GET" class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1 relative">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" name="q" value="{{ query|default:'' }}" 
+                       placeholder="Search by employee name..." 
+                       class="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">
+            </div>
+
+            <div class="relative">
+                <input type="date" name="date" value="{{ date_filter }}"
+                       class="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-gray-600">
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-blue-100">
+                    Filter
+                </button>
+                <a href="{% url 'admin-attendance-logs' %}" class="bg-gray-100 hover:bg-gray-200 text-gray-500 px-6 py-3 rounded-2xl font-bold transition-all">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-100 text-[10px] uppercase tracking-widest font-black text-gray-400">
+                    <th class="px-8 py-5">Employee</th>
+                    <th class="px-8 py-5">Mode</th> <th class="px-8 py-5">Date</th>
+                    <th class="px-8 py-5">Check In</th>
+                    <th class="px-8 py-5">Check Out</th>
+                    <th class="px-8 py-5 text-right">Work Time</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                {% for log in all_logs %}
+                <tr class="hover:bg-blue-50/30 transition-colors">
+                    <td class="px-8 py-5 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">
+                            {{ log.user.username|slice:":1"|upper }}
+                        </div>
+                        <span class="font-bold text-gray-800">{{ log.user.username }}</span>
+                    </td>
+
+                    <td class="px-8 py-5">
+                        {% if log.work_mode == 'OFFICE' %}
+                            <span class="px-3 py-1 bg-blue-100 text-blue-700 text-[9px] font-black rounded-full border border-blue-200 uppercase">
+                                🏢 Office
+                            </span>
+                        {% elif log.work_mode == 'REMOTE' %}
+                            <span class="px-3 py-1 bg-purple-100 text-purple-700 text-[9px] font-black rounded-full border border-purple-200 uppercase">
+                                🏠 Remote
+                            </span>
+                        {% else %}
+                            <span class="px-3 py-1 bg-orange-100 text-orange-700 text-[9px] font-black rounded-full border border-orange-200 uppercase">
+                                🚗 Field
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-8 py-5 text-sm text-gray-500 font-medium">{{ log.date }}</td>
+                    <td class="px-8 py-5 text-sm font-mono text-gray-900">{{ log.check_in|time:"H:i" }}</td>
+                    <td class="px-8 py-5 text-sm font-mono text-gray-900">
+                        {% if log.check_out %}{{ log.check_out|time:"H:i" }}{% else %}<span class="text-green-500 italic text-xs">Active</span>{% endif %}
+                    </td>
+                    <td class="px-8 py-5 text-right">
+                        <span class="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-black rounded-lg">
+                            {{ log.get_duration }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

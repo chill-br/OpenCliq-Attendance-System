@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="max-w-6xl mx-auto mt-10 px-6 pb-20">
+    
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+    <div class="flex items-center gap-4">
+        <a href="{% url 'dashboard' %}" class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 text-gray-400 hover:text-blue-600 hover:shadow-md transition-all">
+            <i class="fas fa-chevron-left text-lg"></i>
+        </a>
+        
+        <div>
+            <h2 class="text-4xl font-black text-gray-800 tracking-tight">Worker Directory</h2>
+            <p class="text-gray-500 font-medium mt-1">Manage employee accounts and system access.</p>
+        </div>
+    </div>
+    
+    <div class="flex items-center gap-3 bg-white px-6 py-3 rounded-2xl shadow-sm border border-gray-100">
+        <span class="text-gray-400 font-bold text-xs uppercase tracking-widest">Total Staff</span>
+        <span class="text-2xl font-black text-blue-600">{{ workers.count }}</span>
+    </div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+    <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="bg-green-100 p-3 rounded-2xl text-green-600">
+                <i class="fas fa-bolt text-xl"></i>
+            </div>
+            <div>
+                <p class="text-xs font-black text-gray-400 uppercase tracking-widest">Active Now</p>
+                <h4 class="text-2xl font-black text-gray-800">{{ online_count }}</h4>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="bg-orange-100 p-3 rounded-2xl text-orange-600">
+                <i class="fas fa-coffee text-xl"></i>
+            </div>
+            <div>
+                <p class="text-xs font-black text-gray-400 uppercase tracking-widest">On Break</p>
+                <h4 class="text-2xl font-black text-gray-800">{{ break_count }}</h4>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-100 p-3 rounded-2xl text-blue-600">
+                <i class="fas fa-calendar-check text-xl"></i>
+            </div>
+            <div>
+                <p class="text-xs font-black text-gray-400 uppercase tracking-widest">Total Staff</p>
+                <h4 class="text-2xl font-black text-gray-800">{{ workers.count }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div class="bg-white rounded-[2rem] shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/50 border-b border-gray-100">
+                        <th class="px-8 py-5 text-[10px] uppercase tracking-[0.2em] font-black text-gray-400">Employee</th>
+                        <th class="px-8 py-5 text-[10px] uppercase tracking-[0.2em] font-black text-gray-400">Department</th>
+                        <th class="px-8 py-5 text-[10px] uppercase tracking-[0.2em] font-black text-gray-400">Work Status</th>
+                        <th class="px-8 py-5 text-[10px] uppercase tracking-[0.2em] font-black text-gray-400 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for worker in workers %}
+                    <tr class="hover:bg-blue-50/40 transition-all group">
+                        <td class="px-8 py-6">
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    {% if worker.avatar %}
+                                        <img src="{{ worker.avatar.url }}" class="w-12 h-12 rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform">
+                                    {% else %}
+                                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-blue-100">
+                                            {{ worker.username|slice:":1"|upper }}
+                                        </div>
+                                    {% endif %}
+                                    {% if worker.is_online %}
+                                        <span class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <p class="font-black text-gray-800">{{ worker.username }}</p>
+                                        {% if worker.is_superuser %}
+                                            <span class="bg-indigo-100 text-indigo-600 text-[9px] font-black px-1.5 py-0.5 rounded uppercase">Admin</span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="text-xs text-gray-400 font-medium">{{ worker.email|default:"No email provided" }}</p>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td class="px-8 py-6">
+                            <span class="inline-flex items-center px-3 py-1 rounded-lg bg-gray-100 text-gray-600 text-[11px] font-black uppercase tracking-wider border border-gray-200">
+                                {{ worker.department|default:"Unassigned" }}
+                            </span>
+                        </td>
+
+                        <td class="px-8 py-6">
+                            {% if worker.is_online %}
+                                <div class="flex items-center gap-2 text-green-600">
+                                    <span class="relative flex h-2 w-2">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                    <span class="text-xs font-black uppercase">On Duty</span>
+                                </div>
+                            {% else %}
+                                <div class="flex items-center gap-2 text-gray-300">
+                                    <i class="fas fa-moon text-[10px]"></i>
+                                    <span class="text-xs font-bold uppercase tracking-tighter">Off Duty</span>
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        <td class="px-8 py-6 text-right">
+                            <div class="flex justify-end gap-2">
+                                <a href="{% url 'admin-edit-worker' worker.pk %}" class="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-blue-600 hover:text-white hover:shadow-lg hover:shadow-blue-200 transition-all">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button class="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-200 transition-all">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-8 py-20 text-center">
+                            <div class="text-gray-300 mb-4">
+                                <i class="fas fa-users-slash text-5xl"></i>
+                            </div>
+                            <p class="text-gray-400 font-bold">No workers found in the database.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <a href="{% url 'admin-attendance-logs' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl shadow-lg shadow-indigo-100 transition-all flex items-center gap-2">
+    <i class="fas fa-history"></i>
+    View All Logs
+</a>
+    </div>
+    <div class="bg-gradient-to-br from-indigo-600 to-blue-700 p-6 rounded-3xl text-white shadow-xl shadow-blue-200">
+    <div class="flex items-center gap-4">
+        <div class="bg-white/20 p-3 rounded-2xl">
+            <i class="fas fa-clock text-xl"></i>
+        </div>
+        <div>
+            <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Company Hours (Month)</p>
+            <h4 class="text-2xl font-black">{{ total_monthly_hours }}h</h4>
+        </div>
+    </div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+        <div class="bg-green-50 p-3 rounded-2xl text-green-600"><i class="fas fa-user-check"></i></div>
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">On Duty</p>
+            <h4 class="text-xl font-black text-gray-800">2</h4>
+        </div>
+    </div>
+    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+        <div class="bg-orange-50 p-3 rounded-2xl text-orange-600"><i class="fas fa-coffee"></i></div>
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">On Break</p>
+            <h4 class="text-xl font-black text-gray-800">1</h4>
+        </div>
+    </div>
+    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+        <div class="bg-blue-50 p-3 rounded-2xl text-blue-600"><i class="fas fa-clock"></i></div>
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Avg. Hours</p>
+            <h4 class="text-xl font-black text-gray-800">7.2h</h4>
+        </div>
+    </div>
+    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+        <div class="bg-purple-50 p-3 rounded-2xl text-purple-600"><i class="fas fa-calendar-day"></i></div>
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Present Today</p>
+            <h4 class="text-xl font-black text-gray-800">4/4</h4>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
