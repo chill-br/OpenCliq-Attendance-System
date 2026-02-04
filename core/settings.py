@@ -98,7 +98,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'opencliq_db',          # Create this schema in MySQL Workbench
         'USER': 'root',  # Usually 'root'
-        'PASSWORD': 'a1j2a3@#y4',    # Your MySQL Workbench password
+        'PASSWORD': '',    # Your MySQL Workbench password
         'HOST': '127.0.0.1',            # Or 'localhost'
         'PORT': '3306',                 # Default MySQL port
     }
