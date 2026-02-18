@@ -1,255 +1,257 @@
-import json
-import csv
-from datetime import timedelta
-
+import json, math
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
-from django.db.models import Sum
-from .models import Meeting
-
-# Import your models
-from .models import Attendance, Task
+from django.contrib import messages
 from django.contrib.auth import get_user_model
-User = get_user_model() # This is the "safe" way to get your User model  # Or use get_user_model()
+from datetime import timedelta, date, datetime
+from django.db.models import Sum
+from django.views.decorators.http import require_POST
+from .models import Attendance, Task, Meeting, Announcement
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
+from .serializers import AttendanceSerializer, EmployeeSerializer
+from math import radians, cos, sin, asin, sqrt
 
+User = get_user_model()
+
+# --- HELPER FUNCTIONS ---
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 6371000  # Earth radius in meters
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+# --- MAIN UI ---
 @login_required
 def dashboard(request):
     user = request.user
-    today = timezone.now().date()
+    today = timezone.localdate()
+    start_of_month = today.replace(day=1)
     
-    # --- 1. STATS CALCULATIONS ---
-    # Today's Total
-    today_logs = Attendance.objects.filter(user=user, date=today, check_out__isnull=False)
-    today_seconds = sum((log.check_out - log.check_in).total_seconds() for log in today_logs)
-    today_hours = round(today_seconds / 3600, 1)
+    # 1. Attendance Data
+    logs = Attendance.objects.filter(user=user).order_by('-date', '-check_in')[:10]
+    active_session = Attendance.objects.filter(user=user, check_out__isnull=True).last()
+    
+    # 2. Stats Calculation
+    all_attendance = Attendance.objects.filter(user=user)
+    
+    # Calculate Today's Hours
+    today_logs = all_attendance.filter(date=today)
+    # Calculate today's total hours
+    today_hours_list = [log.get_duration_hours() for log in today_logs if log.check_out]
+    today_hours = round(sum(today_hours_list), 2) if today_hours_list else 0
+    
+    # Calculate Monthly Hours
+    monthly_logs = all_attendance.filter(date__gte=start_of_month)
+    monthly_hours = sum([float(log.get_duration_hours() or 0) for log in monthly_logs if log.check_out])
 
-    # Monthly Total
-    current_month = today.month
-    monthly_logs = Attendance.objects.filter(user=user, date__month=current_month, check_out__isnull=False)
-    monthly_seconds = sum((log.check_out - log.check_in).total_seconds() for log in monthly_logs)
-    monthly_hours = int(monthly_seconds // 3600)
-
-    # Avg Check-in
-    all_logs = Attendance.objects.filter(user=user).order_by('check_in')
-    avg_text = "09:00 AM" 
-    if all_logs.exists():
-        avg_text = all_logs.first().check_in.strftime("%I:%M %p")
-
-    # --- 2. ATTENDANCE & TEAM LOGIC ---
-    logs = Attendance.objects.filter(user=user).order_by('-check_in')[:10]
-    active_session = Attendance.objects.filter(user=user, check_out__isnull=True).first()
+    # 3. Tasks & Meetings
+    tasks = Task.objects.filter(user=user, created_at__date=today)
+    meetings = Meeting.objects.filter(start_time__date=today).order_by('start_time')
+    
+    # 4. Team Status
     online_team = User.objects.filter(is_online=True).exclude(id=user.id)
-    offline_team = User.objects.filter(is_online=False).exclude(id=user.id)
+    is_currently_online = active_session is not None
 
-    # --- 3. TASK LOGIC ---
-    tasks = Task.objects.filter(user=user).order_by('-created_at')
+    if user.is_online != is_currently_online:
+        user.is_online = is_currently_online
+        user.save(update_fields=['is_online'])
 
+    # 5. Chart Data (Last 7 days)
+    chart_days, chart_data = [], []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        chart_days.append(day.strftime('%a'))
+        day_log = Attendance.objects.filter(user=user, date=day)
+        hours = sum([float(l.get_duration_hours() or 0) for l in day_log if l.check_out])
+        chart_data.append(hours)
+    
     context = {
         'logs': logs,
         'active_session': active_session,
-        'online_team': online_team,
-        'offline_team': offline_team,
-        'today_hours': today_hours,
-        'monthly_hours': monthly_hours,
-        'avg_check_in': avg_text,
         'tasks': tasks,
+        'meetings': meetings,
+        'online_team': online_team,
+        'chart_days': chart_days,
+        'chart_data': chart_data,
+        'today_hours': round(today_hours, 1),
+        'monthly_hours': round(monthly_hours, 1),
+        'avg_check_in': "09:00", 
+        'is_online': is_currently_online,
     }
-
-    days = []
-    hours_data = []
-    for i in range(6, -1, -1):
-        date = today - timedelta(days=i)
-        days.append(date.strftime('%a'))
-        
-        # Get all logs for this day
-        day_logs = Attendance.objects.filter(user=user, date=date)
-        total_seconds = 0
-        
-        for log in day_logs:
-            if log.check_out:
-                total_seconds += (log.check_out - log.check_in).total_seconds()
-            elif log.date == today:
-                # If still checked in today, calculate time up until "now"
-                total_seconds += (timezone.now() - log.check_in).total_seconds()
-        
-        hours_data.append(round(total_seconds / 3600, 1))
-    context = {
-        # ... your other context variables ...
-        'chart_days': json.dumps(days),
-        'chart_data': json.dumps(hours_data),
-    }
-
-    upcoming_meetings = Meeting.objects.filter(
-        start_time__gte=timezone.now()
-    ).order_by('start_time')[:3] # Show only the next 3
-
-    context = {
-        # ... your other context ...
-        'meetings': upcoming_meetings,
-    }
-    
     return render(request, 'dashboard.html', context)
 
+# --- ATTENDANCE ACTIONS ---
 @login_required
 def toggle_attendance(request):
-    user = request.user
-    now = timezone.now()
-    active_session = Attendance.objects.filter(user=user, check_out__isnull=True).first()
+    if request.method == 'POST':
+        user = request.user
+        now_local = timezone.localtime()
+        today = now_local.date()
 
-    if active_session:
-        active_session.check_out = now
-        active_session.save()
-        user.is_online = False
-    else:
-        selected_mode = request.POST.get('work_mode', 'OFFICE')
-        Attendance.objects.create(
-            user=user, 
-            check_in=now, 
-            date=now.date(),
-            work_mode=selected_mode
-        )
-        user.is_online = True
-    
-    user.save()
+        # 1. Check if there is an active session (In but not Out)
+        # We look for today's record specifically to satisfy the unique_together constraint
+        attendance = Attendance.objects.filter(user=user, date=today).first()
+
+        if attendance and not attendance.check_out:
+            # --- LOGIC: CHECK OUT ---
+            attendance.check_out = now_local
+            attendance.save()
+            
+            # Update user online status
+            if hasattr(user, 'is_online'):
+                user.is_online = False
+                user.save(update_fields=['is_online'])
+                
+            messages.success(request, "Checked out successfully!")
+            return redirect('dashboard')
+
+        elif attendance and attendance.check_out:
+            # --- LOGIC: ALREADY FINISHED ---
+            messages.warning(request, "You have already completed your shift for today.")
+            return redirect('dashboard')
+
+        else:
+            # --- LOGIC: CHECK IN ---
+            mode = request.POST.get('work_mode', 'OFFICE').upper()
+            lat_raw = request.POST.get('latitude', '0')
+            lng_raw = request.POST.get('longitude', '0')
+
+            try:
+                lat = float(lat_raw) if lat_raw and lat_raw != '0' else 0.0
+                lng = float(lng_raw) if lng_raw and lng_raw != '0' else 0.0
+            except ValueError:
+                lat, lng = 0.0, 0.0
+
+            # Office Mode Geofencing
+            if mode == 'OFFICE':
+                office_lat, office_lng = 12.9716, 77.5946 
+                if lat == 0.0:
+                    messages.error(request, "Location access is required for Office mode.")
+                    return redirect('dashboard')
+
+                dist = calculate_distance(lat, lng, office_lat, office_lng)
+                if dist > 20000: # 20km limit
+                    messages.error(request, f"Too far from office ({int(dist)}m).")
+                    return redirect('dashboard')
+
+            # Create the record for today
+            # Use update_or_create to prevent IntegrityError
+            Attendance.objects.update_or_create(
+                user=user, 
+                date=today,
+                defaults={
+                    'check_in': now_local,
+                    'work_mode': mode,
+                    'latitude': lat,
+                    'longitude': lng
+                }
+            )
+
+            if hasattr(user, 'is_online'):
+                user.is_online = True
+                user.save(update_fields=['is_online'])
+
+            messages.success(request, f"Checked in via {mode}!")
+            
     return redirect('dashboard')
-
-@login_required
-def export_attendance(request):
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="attendance_{request.user.username}.csv"'
-    
-    writer = csv.writer(response)
-    writer.writerow(['Date', 'Check In', 'Check Out', 'Work Mode'])
-    
-    logs = Attendance.objects.filter(user=request.user).order_by('-date')
-    for log in logs:
-        writer.writerow([log.date, log.check_in, log.check_out, log.work_mode])
-        
-    return response
-
-# --- TASK API VIEW FUNCTIONS ---
-
-@login_required
-def add_task(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            task_text = data.get('text')
-            if task_text:
-                task = Task.objects.create(user=request.user, text=task_text)
-                return JsonResponse({
-                    'id': task.id, 
-                    'text': task.text, 
-                    'is_completed': task.is_completed
-                })
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    return JsonResponse({'error': 'Invalid request'}, status=400)
-
-@login_required
-def toggle_task(request, task_id):
-    if request.method == "POST":
-        task = get_object_or_404(Task, id=task_id, user=request.user)
-        task.is_completed = not task.is_completed
-        task.save()
-        return JsonResponse({'is_completed': task.is_completed})
-    return JsonResponse({'error': 'Invalid request'}, status=400)
-
-@login_required
-def delete_task(request, task_id):
-    if request.method == "POST":
-        task = get_object_or_404(Task, id=task_id, user=request.user)
-        task.delete()
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'error': 'Invalid request'}, status=400)
 
 @login_required
 def toggle_break(request):
-    session = Attendance.objects.filter(user=request.user, check_out__isnull=True).first()
-    if session:
-        # Check if model has these fields before saving
-        if hasattr(session, 'on_break'):
-            if not session.on_break:
-                session.on_break = True
-                session.break_start = timezone.now()
-            else:
-                if session.break_start:
-                    duration = timezone.now() - session.break_start
-                    session.total_break_time += duration
-                session.on_break = False
-                session.break_start = None
-            session.save()
+    att = Attendance.objects.filter(user=request.user, check_out__isnull=True).last()
+    if not att:
+        return JsonResponse({'error': 'Not checked in'}, status=400)
+    
+    now = timezone.now()
+    if not att.on_break:
+        att.on_break, att.break_start = True, now
+        att.break_type = request.POST.get('break_type', 'SHORT')
+    else:
+        if att.break_start:
+            att.total_break_time += (now - att.break_start)
+        att.on_break, att.break_start, att.break_type = False, None, None
+    att.save()
+    return JsonResponse({'status': 'success', 'on_break': att.on_break})
+
+@login_required
+@require_POST
+def add_task(request):
+    data = json.loads(request.body)
+    task = Task.objects.create(user=request.user, text=data.get('text'))
+    return JsonResponse({'status': 'success', 'id': task.id, 'text': task.text})
+
+@login_required
+@require_POST
+def toggle_task(request, task_id):
+    task = get_object_or_404(Task, id=task_id, user=request.user)
+    task.is_completed = not task.is_completed
+    task.save()
+    return JsonResponse({'status': 'success', 'is_completed': task.is_completed})
+
+@login_required
+@require_POST
+def delete_task(request, task_id):
+    Task.objects.filter(id=task_id, user=request.user).delete()
+    return JsonResponse({'status': 'success'})
+
+@staff_member_required
+def admin_dashboard(request):
+    return render(request, 'admin/workers_list.html', {'workers': User.objects.all()})
+
+@staff_member_required
+def create_meeting(request):
+    if request.method == 'POST':
+        Meeting.objects.create(
+            created_by=request.user,
+            title=request.POST.get('title'),
+            description=request.POST.get('description'),
+            meeting_link=request.POST.get('link'),
+            start_time=request.POST.get('start_time')
+        )
+        messages.success(request, "Meeting scheduled!")
+        return redirect('dashboard')
+    return render(request, 'admin/create_meeting.html')
+
+@staff_member_required
+def create_announcement(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        Announcement.objects.create(title=data.get('title'), content=data.get('content'), author=request.user)
+        return JsonResponse({"status": "success"}, status=201)
+    return JsonResponse({"error": "Invalid"}, status=400)
+
+@login_required
+def export_attendance(request):
+    messages.info(request, "Export feature coming soon!")
     return redirect('dashboard')
 
-
 @login_required
-def admin_dashboard(request):
-    if not request.user.is_staff:
+def profile_edit(request):
+    if request.method == 'POST':
+        user = request.user
+        user.username = request.POST.get('username')
+        if 'avatar' in request.FILES:
+            user.avatar = request.FILES['avatar']
+        user.save()
+        messages.success(request, "Profile updated successfully!")
         return redirect('dashboard')
-    
-    workers = User.objects.all()
-    # Path is 'admin/filename.html' because they are inside the admin folder
-    return render(request, 'admin/workers_list.html', {'workers': workers})
+    return render(request, 'registration/profile.html')
 
-@login_required
-def workers_list(request):
-    if not request.user.is_staff:
-        return redirect('dashboard')
-    workers = User.objects.all()
-    return render(request, 'admin/workers_list.html', {'workers': workers})
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def attendance_stats_api(request):
+    logs = Attendance.objects.filter(user=request.user).order_by('-check_in')[:10]
+    serializer = AttendanceSerializer(logs, many=True)
+    return Response(serializer.data)
 
-@login_required
-def all_attendance(request):
-    if not request.user.is_staff:
-        return redirect('dashboard')
-    all_logs = Attendance.objects.all().order_by('-date')
-    return render(request, 'admin/attendance_logs.html', {'all_logs': all_logs})
-
-@login_required
-def edit_worker(request, user_id):
-    if not request.user.is_staff:
-        return redirect('dashboard')
-        
-    worker = get_object_or_404(User, id=user_id)
-    
-    if request.method == "POST":
-        # Get data from the form fields in edit_worker.html
-        worker.username = request.POST.get('username')
-        worker.email = request.POST.get('email')
-        worker.department = request.POST.get('department')
-        
-        # Update staff status if your template has this checkbox
-        worker.is_staff = 'is_staff' in request.POST 
-        
-        worker.save()
-        return redirect('workers-list') # Take us back to the list after saving
-        
-    return render(request, 'admin/edit_worker.html', {'worker': worker})
-
-from .models import Meeting
-
-@login_required
-def create_meeting(request):
-    if not request.user.is_staff:
-        return redirect('dashboard')
-        
-    if request.method == "POST":
-        # Get data from the form
-        title = request.POST.get('title')
-        description = request.POST.get('description')
-        link = request.POST.get('link')
-        start_time = request.POST.get('start_time')
-        
-        # Create the meeting object
-        Meeting.objects.create(
-            title=title,
-            description=description,
-            meeting_link=link,
-            start_time=start_time
-        )
-        return redirect('admin-dashboard')
-    
-    # This points to: templates/admin/create_meeting.html
-    return render(request, 'admin/create_meeting.html')
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def employee_list_api(request):
+    serializer = EmployeeSerializer(User.objects.all(), many=True)
+    return Response(serializer.data)
