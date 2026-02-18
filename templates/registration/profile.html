@@ -1,90 +1,51 @@
-{% extends "base.html" %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Edit Profile | OpenCliq</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-stone-100 p-8">
+    <div class="max-w-xl mx-auto bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
+        <div class="bg-emerald-700 p-6 text-white">
+            <h2 class="text-xl font-black uppercase tracking-tight">Edit Profile</h2>
+        </div>
 
-{% block content %}
-<div class="max-w-4xl mx-auto px-4 py-8">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        <div class="md:col-span-1">
-            <div class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 text-center">
-                <div class="relative inline-block mb-4">
+        <form method="POST" enctype="multipart/form-data" class="p-8 space-y-6">
+            {% csrf_token %}
+            
+            <div class="flex flex-col items-center gap-4">
+                <div class="w-24 h-24 rounded-full bg-stone-100 border-4 border-white shadow-md overflow-hidden">
                     {% if user.avatar %}
-                        <img src="{{ user.avatar.url }}" class="w-32 h-32 rounded-full border-4 border-blue-50 object-cover mx-auto shadow-lg">
+                        <img src="{{ user.avatar.url }}" class="w-full h-full object-cover">
+                    {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-3xl font-black text-stone-300">
+                            {{ user.username|slice:":1"|upper }}
+                        </div>
                     {% endif %}
-                    <span class="absolute bottom-1 right-1 w-6 h-6 bg-green-500 border-4 border-white rounded-full"></span>
                 </div>
-                <h2 class="text-xl font-black text-gray-800">{{ user.first_name }} {{ user.last_name }}</h2>
-                <p class="text-blue-600 font-bold text-xs uppercase tracking-widest mt-1">{{ user.department }}</p>
-                <div class="mt-6 pt-6 border-t border-gray-50">
-                    <p class="text-xs text-gray-400 font-medium">Username: <span class="text-gray-700 font-bold">@{{ user.username }}</span></p>
+                <label class="cursor-pointer bg-stone-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition">
+                    Change Avatar
+                    <input type="file" name="avatar" class="hidden" accept="image/*">
+                </label>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-black text-stone-400 uppercase mb-1">Username</label>
+                    <input type="text" name="username" value="{{ user.username }}" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-stone-400 uppercase mb-1">Email</label>
+                    <input type="email" name="email" value="{{ user.email }}" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20">
                 </div>
             </div>
-        </div>
 
-        <div class="md:col-span-2">
-            <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-                <div class="bg-gray-50 px-8 py-6 border-b border-gray-100 flex justify-between items-center">
-                    <h3 class="text-lg font-black text-gray-700">Edit Personal Details</h3>
-                    <i class="fas fa-shield-alt text-gray-300"></i>
-                </div>
-
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="m-6 p-4 rounded-xl bg-green-50 text-green-700 text-sm font-bold border border-green-100 animate-bounce">
-                            <i class="fas fa-check-circle mr-2"></i> {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-
-                <form method="post" enctype="multipart/form-data" class="p-8">
-                    {% csrf_token %}
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        {% for field in form %}
-                        <div class="{% if field.name == 'avatar' or field.name == 'email' %}sm:col-span-2{% endif %}">
-                            <label class="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
-                                {{ field.label }}
-                            </label>
-                            {{ field }}
-                            {% if field.errors %}
-                                <p class="text-red-500 text-[10px] mt-1 font-bold">{{ field.errors.0 }}</p>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <div class="mt-10 flex items-center gap-4">
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-black px-10 py-4 rounded-2xl shadow-xl shadow-blue-100 transition-all active:scale-95 text-sm uppercase tracking-widest">
-                            Save Changes
-                        </button>
-                        <a href="{% url 'dashboard' %}" class="text-gray-400 font-bold hover:text-gray-600 text-sm">
-                            Back to Dashboard
-                        </a>
-                    </div>
-                </form>
+            <div class="flex gap-3 pt-4">
+                <a href="{% url 'dashboard' %}" class="flex-1 text-center py-3 rounded-xl border border-stone-200 text-stone-500 font-bold text-sm hover:bg-stone-50 transition">Cancel</a>
+                <button type="submit" class="flex-1 bg-emerald-700 text-white py-3 rounded-xl font-black text-sm hover:bg-emerald-800 shadow-lg shadow-emerald-100 transition">SAVE CHANGES</button>
             </div>
-        </div>
-
+        </form>
     </div>
-</div>
-
-<style>
-    /* Force Tailwind-like styling on Django fields */
-    input[type="text"], input[type="email"], select, input[type="file"] {
-        width: 100%;
-        padding: 0.85rem 1.25rem;
-        border-radius: 1rem;
-        border: 1px solid #f1f3f5;
-        background-color: #f8fafc;
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: #1e293b;
-        transition: all 0.2s;
-    }
-    input:focus {
-        background-color: white;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.05);
-        outline: none;
-    }
-</style>
-{% endblock %}
+</body>
+</html>

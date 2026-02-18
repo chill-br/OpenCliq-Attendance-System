@@ -102,3 +102,30 @@ class Meeting(models.Model):
 
     def __str__(self):
         return self.title
+
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class TeamPost(models.Model):
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='team_posts')
+    title = models.CharField(max_length=200, blank=True, null=True) # Optional title
+    content = models.TextField()
+    
+    # Image support
+    image = models.ImageField(upload_to='team_blogs/%Y/%m/', blank=True, null=True)
+    
+    # Logic fields
+    is_announcement = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True) # Good for tracking edits
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Team Post"
+        verbose_name_plural = "Team Posts"
+
+    def __str__(self):
+        prefix = "[Announce]" if self.is_announcement else "[Post]"
+        return f"{prefix} {self.author.username} - {self.created_at.strftime('%d %b %Y')}"

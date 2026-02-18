@@ -11,6 +11,9 @@ urlpatterns = [
     # Django Auth (login/logout/password reset)
     path('accounts/', include('django.contrib.auth.urls')), 
     
+    path('admin/', admin.site.urls),
+    # If you want to use namespaces, include it like this:
+    path('attendance/', include('attendance.urls', namespace='attendance')),
     # Custom Account Views
     path('register/', acc_views.register, name='register'),
     path('profile/', acc_views.profile, name='profile'),

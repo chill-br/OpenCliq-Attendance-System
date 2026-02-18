@@ -9,12 +9,11 @@ from django.contrib.auth import get_user_model
 from datetime import timedelta, date, datetime
 from django.db.models import Sum
 from django.views.decorators.http import require_POST
-from .models import Attendance, Task, Meeting, Announcement
+from .models import Attendance, Task, Meeting, Announcement, TeamPost
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from .serializers import AttendanceSerializer, EmployeeSerializer
-from math import radians, cos, sin, asin, sqrt
 
 User = get_user_model()
 
@@ -43,7 +42,6 @@ def dashboard(request):
     
     # Calculate Today's Hours
     today_logs = all_attendance.filter(date=today)
-    # Calculate today's total hours
     today_hours_list = [log.get_duration_hours() for log in today_logs if log.check_out]
     today_hours = round(sum(today_hours_list), 2) if today_hours_list else 0
     
@@ -72,6 +70,22 @@ def dashboard(request):
         hours = sum([float(l.get_duration_hours() or 0) for l in day_log if l.check_out])
         chart_data.append(hours)
     
+    # Team Blog Post Handling
+    if request.method == "POST" and 'post_content' in request.POST:
+        content = request.POST.get('post_content')
+        image = request.FILES.get('post_image') 
+        
+        if content:
+            TeamPost.objects.create(
+                author=request.user,
+                content=content,
+                image=image,
+                is_announcement=request.user.is_staff 
+            )
+            return redirect('attendance:dashboard') 
+
+    posts = TeamPost.objects.select_related('author').all().order_by('-created_at')[:10]
+
     context = {
         'logs': logs,
         'active_session': active_session,
@@ -84,6 +98,7 @@ def dashboard(request):
         'monthly_hours': round(monthly_hours, 1),
         'avg_check_in': "09:00", 
         'is_online': is_currently_online,
+        'posts': posts,
     }
     return render(request, 'dashboard.html', context)
 
@@ -95,30 +110,24 @@ def toggle_attendance(request):
         now_local = timezone.localtime()
         today = now_local.date()
 
-        # 1. Check if there is an active session (In but not Out)
-        # We look for today's record specifically to satisfy the unique_together constraint
         attendance = Attendance.objects.filter(user=user, date=today).first()
 
         if attendance and not attendance.check_out:
-            # --- LOGIC: CHECK OUT ---
             attendance.check_out = now_local
             attendance.save()
             
-            # Update user online status
             if hasattr(user, 'is_online'):
                 user.is_online = False
                 user.save(update_fields=['is_online'])
                 
             messages.success(request, "Checked out successfully!")
-            return redirect('dashboard')
+            return redirect('attendance:dashboard')
 
         elif attendance and attendance.check_out:
-            # --- LOGIC: ALREADY FINISHED ---
             messages.warning(request, "You have already completed your shift for today.")
-            return redirect('dashboard')
+            return redirect('attendance:dashboard')
 
         else:
-            # --- LOGIC: CHECK IN ---
             mode = request.POST.get('work_mode', 'OFFICE').upper()
             lat_raw = request.POST.get('latitude', '0')
             lng_raw = request.POST.get('longitude', '0')
@@ -129,20 +138,17 @@ def toggle_attendance(request):
             except ValueError:
                 lat, lng = 0.0, 0.0
 
-            # Office Mode Geofencing
             if mode == 'OFFICE':
                 office_lat, office_lng = 12.9716, 77.5946 
                 if lat == 0.0:
                     messages.error(request, "Location access is required for Office mode.")
-                    return redirect('dashboard')
+                    return redirect('attendance:dashboard')
 
                 dist = calculate_distance(lat, lng, office_lat, office_lng)
                 if dist > 20000: # 20km limit
                     messages.error(request, f"Too far from office ({int(dist)}m).")
-                    return redirect('dashboard')
+                    return redirect('attendance:dashboard')
 
-            # Create the record for today
-            # Use update_or_create to prevent IntegrityError
             Attendance.objects.update_or_create(
                 user=user, 
                 date=today,
@@ -160,7 +166,7 @@ def toggle_attendance(request):
 
             messages.success(request, f"Checked in via {mode}!")
             
-    return redirect('dashboard')
+    return redirect('attendance:dashboard')
 
 @login_required
 def toggle_break(request):
@@ -214,34 +220,47 @@ def create_meeting(request):
             meeting_link=request.POST.get('link'),
             start_time=request.POST.get('start_time')
         )
-        messages.success(request, "Meeting scheduled!")
-        return redirect('dashboard')
+        messages.success(request, "Meeting scheduled successfully!")
+        return redirect('attendance:dashboard') 
+
     return render(request, 'admin/create_meeting.html')
 
 @staff_member_required
 def create_announcement(request):
     if request.method == "POST":
-        data = json.loads(request.body)
-        Announcement.objects.create(title=data.get('title'), content=data.get('content'), author=request.user)
-        return JsonResponse({"status": "success"}, status=201)
-    return JsonResponse({"error": "Invalid"}, status=400)
+        try:
+            data = json.loads(request.body)
+            Announcement.objects.create(
+                title=data.get('title'), 
+                content=data.get('content'), 
+                author=request.user
+            )
+            return JsonResponse({"status": "success", "message": "Announcement posted"}, status=201)
+        except (json.JSONDecodeError, KeyError):
+            return JsonResponse({"error": "Invalid data format"}, status=400)
+            
+    return JsonResponse({"error": "Invalid method"}, status=405)
 
 @login_required
 def export_attendance(request):
     messages.info(request, "Export feature coming soon!")
-    return redirect('dashboard')
+    return redirect('attendance:dashboard')
 
 @login_required
 def profile_edit(request):
+    user = request.user
     if request.method == 'POST':
-        user = request.user
         user.username = request.POST.get('username')
-        if 'avatar' in request.FILES:
-            user.avatar = request.FILES['avatar']
+        user.email = request.POST.get('email')
+        avatar = request.FILES.get('avatar')
+        if avatar:
+            user.avatar = avatar 
+        
         user.save()
         messages.success(request, "Profile updated successfully!")
-        return redirect('dashboard')
-    return render(request, 'registration/profile.html')
+        return redirect('attendance:dashboard')
+
+    return render(request, 'registration/profile.html', {'user': user})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -255,3 +274,14 @@ def attendance_stats_api(request):
 def employee_list_api(request):
     serializer = EmployeeSerializer(User.objects.all(), many=True)
     return Response(serializer.data)
+
+@login_required
+def delete_post(request, post_id):
+    post = get_object_or_404(TeamPost, id=post_id)
+    if request.user == post.author or request.user.is_superuser:
+        post.delete()
+        messages.success(request, "Post deleted successfully.")
+    else:
+        messages.error(request, "You do not have permission to delete this post.")
+        
+    return redirect('attendance:dashboard')
