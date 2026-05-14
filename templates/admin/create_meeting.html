@@ -19,7 +19,7 @@
                 <p class="text-blue-100 text-sm">Post a new announcement or video call link for the team.</p>
             </div>
 
-            <form action="{% url 'attendance:create-meeting' %}" method="POST" class="p-8 space-y-6">
+            <form action="{% url 'attendance:create_meeting' %}" method="POST" class="p-8 space-y-6">
                 {% csrf_token %}
                 
                 <div>

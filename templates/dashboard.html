@@ -159,6 +159,12 @@
                                     <p class="text-[8px] text-stone-400">{{ post.created_at|timesince }} ago</p>
                                 </div>
                             </div>
+                            {% if user == post.author or user.is_staff %}
+                            <form action="{% url 'attendance:delete_post' post.id %}" method="POST">
+                                {% csrf_token %}
+                                <button type="submit" class="text-stone-300 hover:text-rose-500"><i class="fas fa-times text-[10px]"></i></button>
+                            </form>
+                            {% endif %}
                         </div>
                         <p class="text-xs text-stone-600 mb-2 leading-relaxed">{{ post.content }}</p>
                         {% if post.image %}
@@ -234,7 +240,7 @@
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-black text-stone-800 text-sm tracking-tight uppercase italic text-orange-500">Scheduled</h3>
                         {% if user.is_staff %}
-                        <a href="{% url 'attendance:create-meeting' %}" class="bg-stone-800 hover:bg-emerald-700 text-white text-[9px] font-black px-3 py-1.5 rounded-lg transition shadow-sm flex items-center gap-2">
+                        <a href="{% url 'attendance:create_meeting' %}" class="bg-stone-800 hover:bg-emerald-700 text-white text-[9px] font-black px-3 py-1.5 rounded-lg transition shadow-sm flex items-center gap-2">
                             <i class="fas fa-plus"></i> SCHEDULE
                         </a>
                         {% endif %}
@@ -289,6 +295,7 @@
     </div>
 
     <script>
+        // Core CSRF Logic
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
@@ -320,19 +327,33 @@
             }
         }
 
-        // Task Management Logic - Fetch URLs must include /attendance/ to match urls.py
+        // Task Management Logic (Fixed with Namespace Placeholders)
         function addTask() {
-            const val = document.getElementById('task-input').value;
-            if (!val) return;
-            fetch("{% url 'attendance:add-task' %}", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-CSRFToken": csrftoken },
-                body: JSON.stringify({ text: val })
-            }).then(() => location.reload());
+    const val = document.getElementById('task-input').value;
+    if (!val) return;
+    
+    // Ensure this uses the correct namespace and name
+    fetch("{% url 'attendance:add-task' %}", {
+        method: "POST",
+        headers: { 
+            "Content-Type": "application/json", 
+            "X-CSRFToken": csrftoken 
+        },
+        body: JSON.stringify({ text: val })
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload(); // Refresh to show the new task
+        } else {
+            console.error("Task add failed");
         }
+    });
+}
 
         function deleteTask(id) {
-            fetch(`/attendance/task/delete/${id}/`, { 
+            // Using placeholder 0 to build namespaced URL
+            const url = "{% url 'attendance:delete-task' 0 %}".replace('0', id);
+            fetch(url, { 
                 method: "POST", 
                 headers: { "X-CSRFToken": csrftoken } 
             }).then(() => {
@@ -342,13 +363,14 @@
         }
 
         function toggleTask(id) {
-            fetch(`/attendance/task/toggle/${id}/`, { 
+            const url = "{% url 'attendance:toggle-task' 0 %}".replace('0', id);
+            fetch(url, { 
                 method: "POST", 
                 headers: { "X-CSRFToken": csrftoken } 
             });
         }
 
-        // Timer Logic
+        // Live Timer Logic
         {% if is_online and active_session %}
         let startTime = new Date("{{ active_session.check_in|date:'c' }}").getTime();
         function updateTimer() {
@@ -361,7 +383,7 @@
         setInterval(updateTimer, 1000); updateTimer();
         {% endif %}
 
-        // Chart.js
+        // Chart.js Configuration
         const ctx = document.getElementById('activityChart').getContext('2d');
         new Chart(ctx, {
             type: 'line',
@@ -376,7 +398,15 @@
                     pointRadius: 4,
                 }]
             },
-            options: { responsive: true, plugins: { legend: { display: false } } }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { display: false } },
+                    x: { grid: { display: false } }
+                }
+            }
         });
     </script>
 </body>

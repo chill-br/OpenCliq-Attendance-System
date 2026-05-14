@@ -75,9 +75,9 @@ DATABASES = {
 
 # Standardize Timezone
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = 'UTC' 
-USE_I18N = True
+TIME_ZONE = 'Asia/Kolkata' # or your specific zone
 USE_TZ = True
+USE_I18N = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"] # Added this to ensure static folder is found

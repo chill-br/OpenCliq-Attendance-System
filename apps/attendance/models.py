@@ -37,16 +37,16 @@ class Attendance(models.Model):
 
     @property
     def get_duration(self):
-        """Returns a string formatted duration (e.g., '8h 30m')"""
-        if self.check_in and self.check_out:
-            duration = (self.check_out - self.check_in) - self.total_break_time
-            total_seconds = int(duration.total_seconds())
-            if total_seconds < 0: 
-                return "0h 0m"
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            return f"{hours}h {minutes}m"
-        return "Active"
+        if not self.check_out:
+            # Calculate duration from check_in until NOW
+            delta = timezone.now() - self.check_in
+        else:
+            delta = self.check_out - self.check_in
+            
+        total_seconds = int(delta.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        return f"{hours}h {minutes}m"
 
     def get_duration_hours(self):
         """

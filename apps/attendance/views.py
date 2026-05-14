@@ -50,7 +50,7 @@ def dashboard(request):
     monthly_hours = sum([float(log.get_duration_hours() or 0) for log in monthly_logs if log.check_out])
 
     # 3. Tasks & Meetings
-    tasks = Task.objects.filter(user=user, created_at__date=today)
+    tasks = Task.objects.filter(user=request.user).order_by('-id')
     meetings = Meeting.objects.filter(start_time__date=today).order_by('start_time')
     
     # 4. Team Status
@@ -90,6 +90,7 @@ def dashboard(request):
         'logs': logs,
         'active_session': active_session,
         'tasks': tasks,
+        #'tasks': user_tasks,
         'meetings': meetings,
         'online_team': online_team,
         'chart_days': chart_days,
@@ -172,25 +173,38 @@ def toggle_attendance(request):
 def toggle_break(request):
     att = Attendance.objects.filter(user=request.user, check_out__isnull=True).last()
     if not att:
-        return JsonResponse({'error': 'Not checked in'}, status=400)
+        messages.error(request, "You must be checked in to take a break.")
+        return redirect('attendance:dashboard')
     
     now = timezone.now()
     if not att.on_break:
-        att.on_break, att.break_start = True, now
+        att.on_break = True
+        att.break_start = now
         att.break_type = request.POST.get('break_type', 'SHORT')
     else:
         if att.break_start:
+            # Ensure total_break_time is initialized to 0 in your model
             att.total_break_time += (now - att.break_start)
-        att.on_break, att.break_start, att.break_type = False, None, None
+        att.on_break = False
+        att.break_start = None
+        att.break_type = None
+    
     att.save()
-    return JsonResponse({'status': 'success', 'on_break': att.on_break})
+    return redirect('attendance:dashboard')
 
 @login_required
 @require_POST
 def add_task(request):
-    data = json.loads(request.body)
-    task = Task.objects.create(user=request.user, text=data.get('text'))
-    return JsonResponse({'status': 'success', 'id': task.id, 'text': task.text})
+    try:
+        data = json.loads(request.body)
+        task_text = data.get('text')
+        if not task_text:
+            return JsonResponse({'error': 'Empty task'}, status=400)
+            
+        task = Task.objects.create(user=request.user, text=task_text)
+        return JsonResponse({'status': 'success', 'id': task.id, 'text': task.text})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 @login_required
 @require_POST
@@ -208,7 +222,10 @@ def delete_task(request, task_id):
 
 @staff_member_required
 def admin_dashboard(request):
-    return render(request, 'admin/workers_list.html', {'workers': User.objects.all()})
+    workers = User.objects.all()
+    # If you have any logic here that calls reverse('dashboard'), 
+    # change it to reverse('attendance:dashboard')
+    return render(request, 'admin/workers_list.html', {'workers': workers})
 
 @staff_member_required
 def create_meeting(request):
